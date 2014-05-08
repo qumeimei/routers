@@ -27,7 +27,7 @@ public class test {
 		System.out.println(string);
 		System.out.println(string.indexOf("@"));
 		String head=string.substring(0, string.indexOf("@"));
-		System.out.println(head);
+		System.out.println("transfer".toLowerCase());
 
 	}
 

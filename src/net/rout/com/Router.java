@@ -31,6 +31,9 @@ public class Router {
 	public PrintStream out;
 	public DatagramSocket serverSocket;
 	public boolean stop;
+	public Map<Integer,byte[]> filemap=new HashMap<Integer, byte[]>();
+	public Map<Integer,String> filename=new HashMap<Integer, String>();
+	public Map<String, RouterInfo> removedRouter=new HashMap<String, RouterInfo>();
 
 	public Router(RouterInfo routerInfo, Map<String, RouterInfo> adjacentRouters, Map<String, LinkInfo> links, PrintStream out,boolean stop) {
 		
@@ -92,7 +95,7 @@ public class Router {
 	public void setToinfinity(String changedkey){
 		Map<String, PathInfo> myDistanceTable = getDistanceTable();
 		for (PathInfo path : myDistanceTable.values()) {
-			if (path.gatewayRouterKey.equals(myDistanceTable)&& path.destinationRouterKey != routerInfo.key) {
+			if (path.gatewayRouterKey.equals(changedkey)&& path.destinationRouterKey != routerInfo.key) {
 				path.cost = Router.INFINITY;
 			}
 		}
@@ -168,7 +171,7 @@ public class Router {
 	    minute = date.get(Calendar.MINUTE);
 	    hour = date.get(Calendar.HOUR);
 	    
-	    out.println("<"+hour+" : "+minute+" : "+second+"> Distance vector list is: ");
+	    out.println("<hour "+hour+" : minute "+minute+" : seconde "+second+"> Distance vector list is: ");
 		for (PathInfo info : minimumPathTable.get(routerInfo.key).values()) {
 			out.println("Destination = " +info.destinationRouterKey+", Cost = "+info.cost+ ", Link = (" +info.gatewayRouterKey+")");
 		}
@@ -223,7 +226,6 @@ public class Router {
 	}
 	/**
 	 * Serializes the table of distances to send through the network
-	 * 
 	 * @param map
 	 * @return the serialized data
 	 */

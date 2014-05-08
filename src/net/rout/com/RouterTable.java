@@ -43,8 +43,8 @@ public class RouterTable {
 			if(n==0){
 
 				String localIpAddress=InetAddress.getLocalHost().getHostAddress();
-				routerinfo.ipAddress=InetAddress.getByName("localhost");
-				//System.out.println ("local ip is "+localIpAddress);
+				routerinfo.ipAddress=InetAddress.getByName(localIpAddress);
+				System.out.println ("********local ip is******* "+localIpAddress);
 				routerinfo.port = Integer.parseInt(strLine[0]);
 				routerinfo.timeOut=Double.parseDouble(strLine[1]);
 				if(strLine.length>2)

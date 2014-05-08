@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -16,39 +17,44 @@ public class Command implements Runnable{
 	
 	private final Router router;
 	private static BufferedReader inputLine = null;
-	private static Map<String, RouterInfo> removedRouter=new HashMap<String, RouterInfo>();
 	private static int headsize=50;
 	private static int filenamesize=50;
 	private static int serialsize=10;
 	private static int addresssize=500;
 	private static int destisize=30;
-	
 	public Command(Router router) {
 		this.router = router;
 	}
-	
 	public void run() {
 		inputLine = new BufferedReader(new InputStreamReader(System.in));
 		
 		 while (router.stop) {
 			 try {
 				String read=inputLine.readLine().trim();
-				
 				if(read.toLowerCase().contains("SHOWRT".toLowerCase())){
 					router.printDistanceTable();
 				}
-				
-			
-				if(read.toLowerCase().contains("LINKDOWN".toLowerCase())){
+				else if(read.toLowerCase().contains("CHECKSELF".toLowerCase())){
+					System.out.println("You have received "+router.filemap.size()+" files and their name is: ");
+					if(router.filename.size()!=0){
+						for (String s: router.filename.values()) {
+							System.out.println(s);
+						}	
+					}
+					}
+	
+				else if(read.toLowerCase().contains("LINKDOWN".toLowerCase())){
 					String[] s=read.trim().split("\\s+");
 					String changedKey=s[1]+":"+s[2];
 					LinkInfo likfo=router.links.get(changedKey);
 					synchronized (router.links){
 					likfo.cost=Double.MAX_VALUE;
 					}
-					System.out.println("now the cost is "+router.links.get(changedKey).cost);
+					System.out.println("now the cost is set to"+router.links.get(changedKey).cost);
 					synchronized (router.adjacentRouters){
-					removedRouter.put(changedKey,router.adjacentRouters.remove(changedKey));
+						synchronized (router.removedRouter){
+					router.removedRouter.put(changedKey,router.adjacentRouters.remove(changedKey));
+						}
 					}
 					synchronized (router.minimumPathTable){
 						router.setToinfinity(changedKey);
@@ -65,27 +71,46 @@ public class Command implements Runnable{
 					router.serverSocket.send(sendPacket);
 					
 				}
-			
-				if(read.toLowerCase().contains("LINKUP".toLowerCase())){
+				else if(read.toLowerCase().contains("DELIVERFILE".toLowerCase())){
 					String[] s=read.trim().split("\\s+");
-					if(s.length!=3){
+					if(s.length!=2){
+						System.out.println("Your input did not match! please input again!!!");
+						continue;
+					}
+					String[] s1=s[1].split(":");
+					String ip=s1[0];
+					int port=Integer.parseInt(s1[1]);
+					String destinationKey=ip+":"+s1[1];
+					
+					byte[] byteMap;
+					///
+					String comandUp="DELIVERFILE";
+					byteMap = Router.serializedCommand(comandUp,headsize);
+					////
+					DatagramPacket sendPacket = new DatagramPacket(byteMap, byteMap.length, InetAddress.getByName(ip), port);
+					router.serverSocket.send(sendPacket);
+				}
+				
+				else if(read.toLowerCase().contains("LINKUP".toLowerCase())){
+					String[] s=read.trim().split("\\s+");
+					if(s.length!=4){
 						System.out.println("Your input did not match! please input again!!!");
 						continue;
 					}
 					
-					String[] s1=s[1].split(":");
-					String ip=s1[0];
-					int port=Integer.parseInt(s1[1]);
-					String changedKey=ip+":"+s1[1];
-					double cost=Double.parseDouble(s[2]);
+					String ip=s[1];
+					int port=Integer.parseInt(s[2]);
+					String changedKey=ip+":"+s[2];
+					double cost=Double.parseDouble(s[3]);
 					LinkInfo likfo=router.links.get(changedKey);
 					synchronized (router.links){
 					likfo.cost=cost;
 					}
-					System.out.println("now the cost is "+router.links.get(changedKey).cost);
-					RouterInfo fo=new RouterInfo();
+					System.out.println("now the cost is set to: "+router.links.get(changedKey).cost);
 					synchronized (router.adjacentRouters){
-					router.adjacentRouters.put(changedKey, removedRouter.get(changedKey));
+						synchronized (router.removedRouter){
+					router.adjacentRouters.put(changedKey, router.removedRouter.get(changedKey));
+						}
 					}
 					byte[] byteMap;
 					///
@@ -95,8 +120,7 @@ public class Command implements Runnable{
 					DatagramPacket sendPacket = new DatagramPacket(byteMap, byteMap.length, InetAddress.getByName(ip), port);
 					router.serverSocket.send(sendPacket);
 				}
-				
-				if(read.toLowerCase().contains("TRANSFER".toLowerCase())){
+				else if(read.toLowerCase().contains("TRANSFER".toLowerCase())){
 					String[] s=read.trim().split("\\s+");
 					String destiip=s[1].trim();
 					int destiPort=Integer.parseInt(s[2]);
@@ -118,17 +142,35 @@ public class Command implements Runnable{
 					String command="TRANSFER";
 					head=Router.serializedCommand(command,headsize);
 					String soureceFilePath="fileTransfer/"+fileName;
-					System.out.println(soureceFilePath);
+					//System.out.println(soureceFilePath);
 					File file = new File(soureceFilePath);
 					 if (file.isFile()) {
 				            try {
 				                DataInputStream diStream = new DataInputStream(new FileInputStream(file));
 				                long len = (int) file.length();
-				               fileBytes = new byte[(int) len];
-				               filename=Router.serializedCommand(fileName, filenamesize);
-							    serial=Router.serializedCommand(Integer.toString(sequenceNumber), filenamesize);
+				                fileBytes = new byte[(int) len];
+				                int read1 = 0;
+				                int numRead = 0;
+				                while (read1 < fileBytes.length && (numRead = diStream.read(fileBytes, read1,
+				                        fileBytes.length - read1)) >= 0) {
+				                    read1 = read1 + numRead;
+				                }
+				                String filsize=String.valueOf(fileBytes.length);
+				                String command1="TRANSFER#"+filsize;
+								head=Router.serializedCommand(command1,headsize);
+								
+				                filename=Router.serializedCommand(fileName, filenamesize);
+							    serial=Router.serializedCommand(Integer.toString(sequenceNumber), serialsize);
 							    dest=Router.serializedCommand(destiKey, destisize);
-							    process=Router.serializedCommand(router.routerInfo.key, destisize);
+							    process=Router.serializedCommand(router.routerInfo.key, addresssize);
+							    /*
+							    System.out.println("length of head is"+head.length);
+							    System.out.println("length of fileBytes is"+fileBytes.length);
+							    System.out.println("length of filename is"+filename.length);
+							    System.out.println("length of serial is"+serial.length);
+							    System.out.println("length of dest is"+dest.length);
+							    System.out.println("length of process is"+process.length);
+							    **/
 							    finaldata=Router.combinSix(head,fileBytes,filename, serial, dest, process);
 							    
 								PathInfo info=router.getDistanceTable().get(destiKey);
@@ -138,9 +180,14 @@ public class Command implements Runnable{
 								int port=Integer.parseInt(s2[1]);
 								
 								DatagramPacket sendPacket = new DatagramPacket(finaldata, finaldata.length, InetAddress.getByName(ip), port);
+								System.out.println("file length is "+finaldata.length);
 								router.serverSocket.send(sendPacket);
-				                
-				          
+								System.out.println("file sent to "+info.gatewayRouterKey);
+								//System.out.println(finaldata.length);
+								//System.out.println("head is "+new String(Arrays.copyOfRange(finaldata, 0, 50))+" package sent to"+ip+":"+port);
+								String path1=new String(Arrays.copyOfRange(finaldata, finaldata.length-500, finaldata.length));
+								String path=path1.substring(0, path1.indexOf('@'));
+								//System.out.println("path is "+path);
 				            } catch (Exception e) {
 				                e.printStackTrace();
 				               
@@ -149,25 +196,19 @@ public class Command implements Runnable{
 				            System.out.println("path specified is not pointing to a file");
 				        
 				        }
-
 				}
-				if(read.toLowerCase().contains("CLOSE".toLowerCase())){
-					//System.out.println("input close");
-					
+				else if(read.toLowerCase().contains("CLOSE".toLowerCase())){
 					router.stop=false;
+					System.out.println("bye~~~~~~~~");
 					break;
 				}
 				}
-
 		catch (IOException e) {	
 				e.printStackTrace();
 			}
 	}
-		 
-		// System.out.println("I am here!");
-
+		
 }
-
 }
 
 

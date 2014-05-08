@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 
+
 /**
  * Implements the client side of the router, i.e., sending messages to his neighbors 
  */
@@ -31,6 +32,12 @@ public class SendOther implements Runnable {
 				this.checkNeighborsTimeout();
 				this.sendDistanceVectorToNeighbors();
 			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+			try {
+				Thread.sleep(500);
+			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
@@ -59,25 +66,22 @@ public class SendOther implements Runnable {
 		byte[] byteMap;
 		Map<String, PathInfo> orimap;
 		Map<String, PathInfo> changedmap=new HashMap<String, PathInfo>();
-		
-
-		
-		int n=0;
 		synchronized (router.adjacentRouters) {
 		for (RouterInfo routerInfo : router.adjacentRouters.values()) {
+			if(!routerInfo.equals(null)){
 			synchronized (router.minimumPathTable) {
 				orimap=router.getDistanceTable();
 			
 			for (Entry<String, PathInfo> a: orimap.entrySet()) {
 				
-				PathInfo path=new PathInfo(a.getValue()); 
-				if((a.getValue().gatewayRouterKey)!=null){
-					//System.out.println("routerInfo.key is "+routerInfo.key);
-					
-					if(routerInfo.key.equals(a.getValue().gatewayRouterKey)&& !(a.getValue().destinationRouterKey.equalsIgnoreCase(routerInfo.key))){
+				PathInfo path=new PathInfo(a.getValue());
+				//apply Poison reverse
+				if((path.gatewayRouterKey)!=null&&null!=routerInfo.key){
+					if(routerInfo.key.equals(path.gatewayRouterKey)&& !(path.destinationRouterKey.equalsIgnoreCase(routerInfo.key))){
 						path.cost=Double.MAX_VALUE;
 				}
 				}
+			
 				changedmap.put(a.getKey(), path);	
 			}
 			byte [] head=Router.serializedCommand("Map",50);
@@ -87,7 +91,8 @@ public class SendOther implements Runnable {
 			String adr=routerInfo.ipAddress.getHostAddress();
 			DatagramPacket sendPacket = new DatagramPacket(data, data.length, InetAddress.getByName(adr), routerInfo.port);
 			router.serverSocket.send(sendPacket);
-			n++;
+			}
+		
 		}
 		}
 		}
@@ -137,17 +142,18 @@ public class SendOther implements Runnable {
 						}
 
 						router.out.println("[" + router.routerInfo.key + "], his neighbor  [" + id
-								+ "] is time out "+"TIMEOUT= "+Router.TIME_OUT/1000+"seconds");
+								+ "] is time out "+"TIMEOUT= "+"3*"+Router.TIME_OUT/1000+"seconds");
 
 						changed = true;
 					}
 				}
 			}
 		}
-
+/*
 		if (changed) {
 			router.printDistanceTable();
 		}
+		**/
 	}
 	
 	
